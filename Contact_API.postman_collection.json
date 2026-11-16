@@ -1,0 +1,686 @@
+{
+  "info": {
+    "_postman_id": "c7a8b9d0-1e2f-3a4b-5c6d-7e8f9a0b1c2d",
+    "name": "Campaign Management APIs",
+    "description": "Postman Collection for all API endpoints including Contact and Campaign management. Default base URL is `http://localhost:8080`.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "item": [
+    {
+      "name": "Contacts",
+      "item": [
+        {
+          "name": "1. Get All Contacts",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/contacts",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "contacts"
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "2. Get Contact By ID",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/contacts/{{contactId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "contacts",
+                "{{contactId}}"
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "3. Search Contacts (Pagination/Sort)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"search\": \"\",\n  \"status\": \"ACTIVE\",\n  \"page\": 0,\n  \"size\": 20,\n  \"sortBy\": \"createdAt\",\n  \"sortDirection\": \"desc\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/contacts/search",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "contacts",
+                "search"
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "4. Create Contact",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"John Doe\",\n  \"phone\": \"03001234567\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/contacts",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "contacts"
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "5. Update Contact",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Jane Doe\",\n  \"phone\": \"03007654321\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/contacts/{{contactId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "contacts",
+                "{{contactId}}"
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "6. Delete Contact",
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/contacts/{{contactId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "contacts",
+                "{{contactId}}"
+              ]
+            }
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "Segments",
+      "item": [
+        {
+          "name": "1. Upload Contacts & Create Segment",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "body": {
+              "mode": "formdata",
+              "formdata": [
+                {
+                  "key": "file",
+                  "type": "file",
+                  "src": []
+                },
+                {
+                  "key": "segmentName",
+                  "value": "New Segment",
+                  "type": "text"
+                }
+              ]
+            },
+            "url": {
+              "raw": "{{baseUrl}}/segments/upload",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "segments",
+                "upload"
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "1.1. Get Upload Progress",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/segments/upload/{{segmentId}}/progress",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "segments",
+                "upload",
+                "{{segmentId}}",
+                "progress"
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "2. Get All Segments",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/segments",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "segments"
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "3. Search Segments",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"search\": \"\",\n  \"page\": 0,\n  \"size\": 20,\n  \"sortBy\": \"createdAt\",\n  \"sortDirection\": \"desc\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/segments/search",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "segments",
+                "search"
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "4. Get Segment By ID",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/segments/{{segmentId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "segments",
+                "{{segmentId}}"
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "5. Delete Segment",
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/segments/{{segmentId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "segments",
+                "{{segmentId}}"
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "6. Add Contact To Segment",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/segments/{{segmentId}}/contacts/{{contactId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "segments",
+                "{{segmentId}}",
+                "contacts",
+                "{{contactId}}"
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "7. Remove Contact From Segment",
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/segments/{{segmentId}}/contacts/{{contactId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "segments",
+                "{{segmentId}}",
+                "contacts",
+                "{{contactId}}"
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "8. Get Contacts In Segment",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/segments/{{segmentId}}/contacts?page=0&size=10",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "segments",
+                "{{segmentId}}",
+                "contacts"
+              ],
+              "query": [
+                {
+                  "key": "page",
+                  "value": "0"
+                },
+                {
+                  "key": "size",
+                  "value": "10"
+                }
+              ]
+            }
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "Campaigns",
+      "item": [
+        {
+          "name": "1. Create Campaign",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Spring Sale 2026\",\n  \"type\": \"IMMEDIATE\",\n  \"contactIds\": [1, 2, 3],\n  \"segmentIds\": [1],\n  \"messageType\": \"TEXT\",\n  \"messageContent\": \"Hello! Check out our new spring collection.\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/campaigns",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "campaigns"
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "2. Get All Campaigns",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/campaigns",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "campaigns"
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "3. Get Campaign By ID",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/campaigns/{{campaignId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "campaigns",
+                "{{campaignId}}"
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "4. Search Campaigns (Pagination/Sort)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"search\": \"\",\n  \"status\": \"DRAFT\",\n  \"page\": 0,\n  \"size\": 20,\n  \"sortBy\": \"createdAt\",\n  \"sortDirection\": \"desc\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/campaigns/search",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "campaigns",
+                "search"
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "5. Update Campaign",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Spring Sale 2026 Updated\",\n  \"type\": \"IMMEDIATE\",\n  \"contactIds\": [1, 2],\n  \"segmentIds\": [],\n  \"messageType\": \"TEXT\",\n  \"messageContent\": \"Updated spring collection alert!\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/campaigns/{{campaignId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "campaigns",
+                "{{campaignId}}"
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "6. Delete Campaign",
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/campaigns/{{campaignId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "campaigns",
+                "{{campaignId}}"
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "7. Pause Campaign",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/campaigns/{{campaignId}}/pause",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "campaigns",
+                "{{campaignId}}",
+                "pause"
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "8. Resume Campaign",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/campaigns/{{campaignId}}/resume",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "campaigns",
+                "{{campaignId}}",
+                "resume"
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "9. Stop Campaign",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/campaigns/{{campaignId}}/stop",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "campaigns",
+                "{{campaignId}}",
+                "stop"
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "10. Get Campaign Progress",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/campaigns/{{campaignId}}/progress",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "campaigns",
+                "{{campaignId}}",
+                "progress"
+              ]
+            }
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "Benchmarks",
+      "item": [
+        {
+          "name": "1. Get Live Benchmarks",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/benchmark/live",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "benchmark",
+                "live"
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "2. Trigger Global Report",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/benchmark/report",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "benchmark",
+                "report"
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "3. Get Campaign Benchmark",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/benchmark/campaign/{{campaignId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "benchmark",
+                "campaign",
+                "{{campaignId}}"
+              ]
+            }
+          },
+          "response": []
+        }
+      ]
+    }
+  ],
+  "variable": [
+    {
+      "key": "baseUrl",
+      "value": "http://localhost:8080",
+      "type": "string"
+    },
+    {
+      "key": "contactId",
+      "value": "1",
+      "type": "string"
+    },
+    {
+      "key": "segmentId",
+      "value": "1",
+      "type": "string"
+    },
+    {
+      "key": "campaignId",
+      "value": "1",
+      "type": "string"
+    }
+  ]
+}

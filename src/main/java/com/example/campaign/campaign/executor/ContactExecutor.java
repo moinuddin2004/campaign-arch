@@ -1,0 +1,269 @@
+package com.example.campaign.campaign.executor;
+
+import com.example.campaign.campaign.benchmark.BenchmarkService;
+import com.example.campaign.campaign.entity.Campaign;
+import com.example.campaign.campaign.entity.MessageLog;
+import com.example.campaign.campaign.enums.CampaignStatus;
+import com.example.campaign.campaign.dto.response.CampaignProgressResponse;
+import com.example.campaign.campaign.repository.CampaignRepository;
+import com.example.campaign.campaign.repository.MessageLogRepository;
+import com.example.campaign.common.service.CampaignRedisService;
+import com.example.campaign.whatsapp.SendResult;
+import com.example.campaign.whatsapp.WhatsAppApiClient;
+import lombok.extern.slf4j.Slf4j;
+
+import java.time.LocalDateTime;
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.List;
+import java.util.Set;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.Semaphore;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicReference;
+
+@Slf4j
+public class ContactExecutor {
+
+    private static final int MAX_ATTEMPTS = 3;
+    private static final long[] RETRY_DELAYS_MS = {500, 1000, 2000};
+    private static final Set<String> NON_RETRYABLE_REASONS = Set.of("USER_BLOCKED", "INVALID_NUMBER");
+
+    private final Long campaignId;
+    private final CampaignRedisService campaignRedisService;
+    private final WhatsAppApiClient whatsAppApiClient;
+    private final Semaphore globalSemaphore;
+    private final MessageLogRepository messageLogRepository;
+    private final CampaignRepository campaignRepository;
+    private final Semaphore campaignSemaphore;
+    private final Campaign campaignRef;
+    private final BenchmarkService benchmarkService;
+
+    private final List<MessageLog> logBuffer = Collections.synchronizedList(new ArrayList<>());
+
+    public ContactExecutor(
+            Long campaignId,
+            CampaignRedisService campaignRedisService,
+            WhatsAppApiClient whatsAppApiClient,
+            Semaphore globalSemaphore,
+            MessageLogRepository messageLogRepository,
+            CampaignRepository campaignRepository,
+            Semaphore campaignSemaphore,
+            BenchmarkService benchmarkService
+    ) {
+        this.campaignId = campaignId;
+        this.campaignRedisService = campaignRedisService;
+        this.whatsAppApiClient = whatsAppApiClient;
+        this.globalSemaphore = globalSemaphore;
+        this.messageLogRepository = messageLogRepository;
+        this.campaignRepository = campaignRepository;
+        this.campaignSemaphore = campaignSemaphore;
+        this.benchmarkService = benchmarkService;
+        this.campaignRef = campaignRepository.getReferenceById(campaignId);
+    }
+
+    public void execute() {
+        try {
+            log.info("[ContactExecutor] Starting execution for campaign: {}", campaignId);
+
+            // ── Benchmark: record Redis message fetch time ────────
+            long redisStart = System.currentTimeMillis();
+            String messageJson = campaignRedisService.getCampaignMessage(campaignId);
+            benchmarkService.recordRedisTime(campaignId, System.currentTimeMillis() - redisStart);
+
+            if (messageJson == null) {
+                log.error("[ContactExecutor] No message found in Redis for campaign {}. Aborting.", campaignId);
+                benchmarkService.onCampaignFailed(campaignId, "No message found in Redis");
+                return;
+            }
+
+            AtomicReference<String> liveStatusRef = new AtomicReference<>(CampaignStatus.RUNNING.name());
+
+            try (ExecutorService vtPool = Executors.newThreadPerTaskExecutor(
+                    Thread.ofVirtual().name("vt-campaign-" + campaignId + "-", 0).factory())) {
+
+                Thread statusWatcherThread = Thread.ofPlatform()
+                        .name("status-watcher-campaign-" + campaignId)
+                        .start(new StatusWatcher(vtPool, campaignId, campaignRedisService, liveStatusRef));
+
+                while (true) {
+                    String status = liveStatusRef.get();
+
+                    if (CampaignStatus.STOPPED.name().equals(status)) {
+                        log.info("[ContactExecutor] Campaign {} STOPPED. Halting.", campaignId);
+                        break;
+                    }
+
+                    if (CampaignStatus.PAUSED.name().equals(status)) {
+                        log.info("[ContactExecutor] Campaign {} PAUSED. Exiting loop — resume will create a new executor.", campaignId);
+                        break;
+                    }
+
+                    // ── Benchmark: record semaphore wait time ─────────
+                    long semStart = System.currentTimeMillis();
+                    try {
+                        globalSemaphore.acquire();
+                    } catch (InterruptedException e) {
+                        Thread.currentThread().interrupt();
+                        break;
+                    }
+                    benchmarkService.recordSemaphoreWait(campaignId, System.currentTimeMillis() - semStart);
+
+                    // ── Benchmark: record Redis lpop time ─────────────
+                    long redisPopStart = System.currentTimeMillis();
+                    String phoneNumber = campaignRedisService.lpopContact(campaignId);
+                    benchmarkService.recordRedisTime(campaignId, System.currentTimeMillis() - redisPopStart);
+
+                    if (phoneNumber == null) {
+                        log.info("[ContactExecutor] No more contacts for campaign {}.", campaignId);
+                        globalSemaphore.release();
+                        break;
+                    }
+
+                    final String phone = phoneNumber;
+                    vtPool.submit(() -> processContact(phone, messageJson));
+                }
+
+                vtPool.shutdown();
+                try {
+                    if (!vtPool.awaitTermination(10, TimeUnit.MINUTES)) {
+                        vtPool.shutdownNow();
+                    }
+                } catch (InterruptedException e) {
+                    vtPool.shutdownNow();
+                    Thread.currentThread().interrupt();
+                }
+
+                statusWatcherThread.interrupt();
+                try {
+                    statusWatcherThread.join();
+                } catch (InterruptedException e) {
+                    Thread.currentThread().interrupt();
+                }
+
+            }
+            String finalStatus = liveStatusRef.get();
+            if (!CampaignStatus.STOPPED.name().equals(finalStatus)
+                    && !CampaignStatus.PAUSED.name().equals(finalStatus)) {
+                campaignRedisService.setCampaignStatus(campaignId, CampaignStatus.COMPLETED.name());
+
+                CampaignProgressResponse progress = campaignRedisService.getCampaignProgress(campaignId);
+                if (progress != null) {
+                    campaignRepository.updateProgressAndStatus(
+                            campaignId,
+                            CampaignStatus.COMPLETED,
+                            progress.getTotalContacts(),
+                            progress.getSentCount(),
+                            progress.getFailedCount(),
+                            LocalDateTime.now()
+                    );
+                } else {
+                    campaignRepository.updateStatus(campaignId, CampaignStatus.COMPLETED);
+                }
+                log.info("[ContactExecutor] Campaign {} marked as COMPLETED with final progress saved.", campaignId);
+
+                // ── Benchmark: mark campaign complete ─────────────
+                benchmarkService.onCampaignComplete(campaignId);
+            }
+            flushLogBuffer();
+        } catch (Exception e) {
+            log.error("[ContactExecutor] Unexpected error in campaign {}: {}", campaignId, e.getMessage(), e);
+            benchmarkService.onCampaignFailed(campaignId, e.getMessage());
+        } finally {
+            log.info("[ContactExecutor] Campaign completed, releasing slot: {}", campaignId);
+            campaignSemaphore.release();
+        }
+    }
+
+    private void processContact(String phoneNumber, String messageJson) {
+        log.debug("[ContactExecutor] Processing: {} | campaign: {}", phoneNumber, campaignId);
+
+        try {
+            SendResult result = null;
+            int retryCount = 0;
+
+            for (int attempt = 0; attempt < MAX_ATTEMPTS; attempt++) {
+                // ── Benchmark: record WhatsApp API call time ──────
+                long apiStart = System.currentTimeMillis();
+                result = whatsAppApiClient.send(phoneNumber, messageJson);
+                benchmarkService.recordWhatsappApiTime(campaignId, System.currentTimeMillis() - apiStart);
+
+                if (result != null && result.success()) break;
+
+                boolean nonRetryable = result != null && NON_RETRYABLE_REASONS.contains(result.failureReason());
+                boolean lastAttempt = (attempt == MAX_ATTEMPTS - 1);
+
+                if (nonRetryable || lastAttempt) break;
+
+                retryCount++;
+                try {
+                    TimeUnit.MILLISECONDS.sleep(RETRY_DELAYS_MS[attempt]);
+                } catch (InterruptedException e) {
+                    Thread.currentThread().interrupt();
+                    return;
+                }
+
+                log.debug("[ContactExecutor] Retry {}/{} for {} after {}ms",
+                        attempt + 1, MAX_ATTEMPTS - 1, phoneNumber, RETRY_DELAYS_MS[attempt]);
+            }
+
+            // Redis stats update
+            long now = System.currentTimeMillis() / 1000;
+
+            // ── Benchmark: record Redis stats update time ─────────
+            long redisStatsStart = System.currentTimeMillis();
+            if (result != null && result.success()) {
+                campaignRedisService.incrementStat(campaignId, "sent");
+                campaignRedisService.markContactSent(campaignId, phoneNumber, now);
+                benchmarkService.recordRedisTime(campaignId, System.currentTimeMillis() - redisStatsStart);
+
+                // ── Benchmark: mark message sent ──────────────────
+                benchmarkService.onMessageSent(campaignId);
+            } else {
+                String reason = result != null ? result.failureReason() : "UNKNOWN";
+                campaignRedisService.incrementStat(campaignId, "failed");
+                campaignRedisService.markContactFailed(campaignId, phoneNumber, reason + ":" + now);
+                benchmarkService.recordRedisTime(campaignId, System.currentTimeMillis() - redisStatsStart);
+
+                // ── Benchmark: mark contact failed ────────────────
+                benchmarkService.onContactFailed(campaignId);
+            }
+
+            logBuffer.add(buildMessageLog(phoneNumber, result, retryCount));
+
+        } finally {
+            globalSemaphore.release();
+        }
+    }
+
+    private MessageLog buildMessageLog(String phoneNumber, SendResult result, int retryCount) {
+        MessageLog entry = new MessageLog();
+        entry.setCampaign(this.campaignRef);
+        entry.setContactNumber(phoneNumber);
+        entry.setContactName(null);
+        entry.setRetryCount(retryCount);
+        entry.setSentAt(LocalDateTime.now());
+
+        if (result != null && result.success()) {
+            entry.setStatus("SENT");
+        } else {
+            entry.setStatus("FAILED");
+            entry.setFailureReason(result != null ? result.failureReason() : "UNKNOWN");
+            entry.setRawError(result != null ? result.rawError() : "null result from API client");
+        }
+        return entry;
+    }
+
+    private void flushLogBuffer() {
+        if (logBuffer.isEmpty()) return;
+        try {
+            log.info("[ContactExecutor] Flushing {} logs to MySQL for campaign {}", logBuffer.size(), campaignId);
+            messageLogRepository.saveAll(new ArrayList<>(logBuffer));
+            logBuffer.clear();
+        } catch (Exception e) {
+            log.error("[ContactExecutor] Flush failed for campaign {}: {}", campaignId, e.getMessage());
+        }
+    }
+
+}
